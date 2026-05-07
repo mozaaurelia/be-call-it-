@@ -2,9 +2,9 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 
-import authRoutes from "./routes/authRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
-import postRoutes from "./routes/postRoutes.js";
+import authRoutes from "./Routes/authRoutes.js";
+import userRoutes from "./Routes/userRoutes.js";
+import postRoutes from "./Routes/postRoutes.js";
 
 dotenv.config();
 
@@ -15,6 +15,9 @@ app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
 // routes
+app.get('/api', (req, res) => {
+  res.send('mojaaa');
+});
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);

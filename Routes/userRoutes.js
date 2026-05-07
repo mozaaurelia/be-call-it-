@@ -1,5 +1,5 @@
 import express from "express";
-import { verifyToken, isRole } from "../middleware/auth.js";
+import { verifyToken, isRole } from "../Middleware/auth.js";
 import {
   getUsers,
   getUserById,

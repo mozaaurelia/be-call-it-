@@ -1,7 +1,7 @@
 import express from "express";
 import multer from "multer";
 
-import { verifyToken, isRole } from "../middleware/auth.js";
+import { verifyToken, isRole } from "../Middleware/auth.js";
 
 import {
   getPosts,
