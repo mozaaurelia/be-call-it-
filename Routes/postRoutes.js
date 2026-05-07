@@ -9,7 +9,7 @@ import {
   updatePost,
   updateStatusPost,
   deletePost
-} from "../controllers/postController.js";
+} from "../Controllers/postController.js";
 
 const router = express.Router();
 
