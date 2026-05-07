@@ -7,6 +7,7 @@ import userRoutes from "./Routes/userRoutes.js";
 import postRoutes from "./Routes/postRoutes.js";
 
 dotenv.config();
+dotenv.config({ path: `.env`, override: true });
 
 const app = express();
 
