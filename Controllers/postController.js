@@ -2,154 +2,289 @@ import connection from "../Config/database.js";
 
 
 // =========================
-// CREATE POST (AUTO PENDING)
+// CREATE POST
 // =========================
 export const createPost = async (req, res) => {
-  const { header, body, category_id } = req.body;
+  const { header, body, category_id, location } = req.body;
+
   const image = req.file ? req.file.filename : null;
 
   try {
     await connection.query(
-      `INSERT INTO public_reports 
-      (header, body, image, user_id, category_id, status) 
-      VALUES (?,?,?,?,?, 'pending')`,
-      [header, body, image, req.user.id, category_id]
+      `INSERT INTO public_reports
+      (header, body, image, location, user_id, category_id, status)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        header,
+        body,
+        image,
+        location || null,
+        req.user.id,
+        category_id || null,
+      ]
     );
 
-    res.json({ message: "Laporan dibuat (pending)" });
+    return res.status(200).json({
+      message: "Laporan berhasil dibuat",
+    });
 
   } catch (err) {
-    res.status(500).json({ message: err.message });
+
+    console.error("CREATE POST ERROR:", err.message);
+
+    return res.status(500).json({
+      message: err.message,
+    });
   }
 };
 
 
+// create user 
+export const createUser = async (req, res) => {
+  const { username, email, password, role } = req.body;
+
+  try {
+    await connection.query(
+      `INSERT INTO users (username, email, password, role)
+       VALUES (?, ?, ?, ?)`,
+      [username, email, password, role || "user"]
+    );
+
+    return res.status(201).json({
+      message: "User berhasil dibuat",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: err.message,
+    });
+  }
+};
+
 // =========================
-// GET ALL POSTS (USER FILTER + STATUS FILTER)
+// GET POSTS USER LOGIN
 // =========================
 export const getPosts = async (req, res) => {
+
   try {
-    let query = "SELECT * FROM public_reports";
-    let params = [];
 
-    const { status } = req.query;
-
-    // USER hanya lihat miliknya
-    if (req.user.role === "user") {
-      query += " WHERE user_id=?";
-      params.push(req.user.id);
+    // VALIDASI USER
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
     }
 
-    // FILTER STATUS (optional)
-    if (status) {
-      query += req.user.role === "user"
-        ? " AND status=?"
-        : " WHERE status=?";
-      params.push(status);
-    }
+    const [rows] = await connection.query(
+      `
+      SELECT 
+        pr.id,
+        pr.header,
+        pr.body,
+        pr.image,
+        pr.location,
+        pr.status,
+        pr.user_id,
+        pr.created_at,
+        IFNULL(c.category_name, '') AS category_name
+      FROM public_reports pr
+      LEFT JOIN categories c 
+        ON pr.category_id = c.id
+      WHERE pr.user_id = ?
+      ORDER BY pr.created_at DESC
+      `,
+      [req.user.id]
+    );
 
-    const [rows] = await connection.query(query, params);
-    res.json(rows);
+    return res.status(200).json(
+      Array.isArray(rows) ? rows : []
+    );
 
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  } catch (error) {
+
+    console.error("GET POSTS ERROR:", error);
+
+    return res.status(500).json({
+      message: "Gagal mengambil laporan",
+      error: error.message,
+    });
+  }
+};
+
+// =========================
+// GET ALL POSTS (ADMIN / SUPERADMIN)
+// =========================
+
+export const getAllPosts = async (req, res) => {
+  try {
+
+    const [results] = await connection.query(`
+      SELECT
+        public_reports.*,
+        users.username,
+        categories.category_name
+      FROM public_reports
+
+      LEFT JOIN users
+      ON public_reports.user_id = users.id
+
+      LEFT JOIN categories
+      ON public_reports.category_id = categories.id
+
+      ORDER BY public_reports.created_at DESC
+    `);
+
+    return res.status(200).json({
+      success: true,
+      data: results,
+    });
+
+  } catch (error) {
+
+    console.error("GET ALL POSTS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get posts",
+      error: error.message,
+    });
   }
 };
 
 
 // =========================
-// UPDATE REPORT (OWNER ONLY)
+// UPDATE POST
 // =========================
 export const updatePost = async (req, res) => {
   const { id } = req.params;
-  const { header, body } = req.body;
+  const { header, body, category_id, location } = req.body;
 
   try {
+    // cek data exist
     const [rows] = await connection.query(
-      "SELECT * FROM public_reports WHERE id=?",
+      "SELECT * FROM public_reports WHERE id = ?",
       [id]
     );
 
     if (!rows.length) {
-      return res.status(404).json({ message: "Laporan tidak ditemukan" });
+      return res.status(404).json({
+        message: "Laporan tidak ditemukan",
+      });
     }
 
-    // USER hanya boleh edit miliknya sendiri
+    // cek hak akses (user cuma boleh edit miliknya sendiri)
     if (req.user.role === "user" && rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ message: "Tidak boleh edit laporan orang lain" });
+      return res.status(403).json({
+        message: "Tidak boleh edit laporan orang lain",
+      });
     }
 
+    // update data
     await connection.query(
-      "UPDATE public_reports SET header=?, body=? WHERE id=?",
-      [header, body, id]
+      `
+      UPDATE public_reports 
+      SET header = ?, 
+          body = ?, 
+          category_id = ?, 
+          location = ?
+      WHERE id = ?
+      `,
+      [
+        header,
+        body,
+        category_id || rows[0].category_id,
+        location || rows[0].location,
+        id
+      ]
     );
 
-    res.json({ message: "Laporan berhasil diupdate" });
+    return res.json({
+      message: "Laporan berhasil diupdate",
+    });
 
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("UPDATE POST ERROR:", err.message);
+
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: err.message,
+    });
   }
 };
 
-
 // =========================
-// UPDATE STATUS (ADMIN / SUPERADMIN)
+// UPDATE STATUS
 // =========================
 export const updateStatusPost = async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body; 
-  // pending / approved / rejected
-
   try {
-    if (!["pending", "approved", "rejected"].includes(status)) {
-      return res.status(400).json({ message: "Status tidak valid" });
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // VALIDASI STATUS
+    if (!["approved", "rejected", "pending"].includes(status)) {
+      return res.status(400).json({
+        message: "Status tidak valid",
+      });
     }
 
-    const [rows] = await connection.query(
-      "SELECT * FROM public_reports WHERE id=?",
-      [id]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ message: "Laporan tidak ditemukan" });
-    }
-
-    // hanya admin / superadmin
-    if (!["admin", "superadmin"].includes(req.user.role)) {
-      return res.status(403).json({ message: "Tidak diizinkan" });
-    }
-
+    // UPDATE DATABASE
     await connection.query(
-      "UPDATE public_reports SET status=? WHERE id=?",
-      [status, id]
-    );
+  `
+  UPDATE public_reports
+  SET status = ?
+  WHERE id = ?
+  `,
+  [status, id]
+);
 
-    res.json({ message: "Status laporan diupdate" });
+const [updatedPost] = await connection.query(
+  `
+  SELECT * FROM public_reports
+  WHERE id = ?
+  `,
+  [id]
+);
 
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(200).json({
+      message: `Post berhasil di-${status}`,
+      data: updatedPost[0],
+    });
+
+  } catch (error) {
+    console.log("UPDATE STATUS ERROR:", error);
+
+    res.status(500).json({
+      message: "Internal Server Error",
+    });
   }
 };
 
-
 // =========================
-// DELETE POST (OWNER ONLY)
+// DELETE POST
 // =========================
 export const deletePost = async (req, res) => {
+
   const { id } = req.params;
 
   try {
+
     const [rows] = await connection.query(
       "SELECT * FROM public_reports WHERE id=?",
       [id]
     );
 
     if (!rows.length) {
-      return res.status(404).json({ message: "Laporan tidak ditemukan" });
+      return res.status(404).json({
+        message: "Laporan tidak ditemukan",
+      });
     }
 
-    if (req.user.role === "user" && rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ message: "Tidak boleh hapus laporan orang lain" });
+    if (
+      req.user.role === "user" &&
+      rows[0].user_id !== req.user.id
+    ) {
+      return res.status(403).json({
+        message: "Tidak boleh hapus laporan orang lain",
+      });
     }
 
     await connection.query(
@@ -157,15 +292,52 @@ export const deletePost = async (req, res) => {
       [id]
     );
 
-    res.json({ message: "Laporan berhasil dihapus" });
+    return res.json({
+      message: "Laporan berhasil dihapus",
+    });
 
   } catch (err) {
-    res.status(500).json({ message: err.message });
+
+    console.error("DELETE ERROR:", err.message);
+
+    return res.status(500).json({
+      message: err.message,
+    });
   }
 };
 
 
+export const getPostStats = async (req, res) => {
+  try {
+    // validasi role
+    if (
+      !req.user ||
+      !["admin", "superadmin"].includes(req.user.role)
+    ) {
+      return res.status(403).json({
+        message: "Tidak diizinkan",
+      });
+    }
 
-// user cuma bisa akses data dirinya sendiri, user bisa edit data diri, 
-// superadmin bisa akses user, admin, bisa edit user,
-// admin,
+    const [rows] = await connection.query(`
+      SELECT 
+        COUNT(*) AS totalReports,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved,
+        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected
+      FROM public_reports
+    `);
+
+    return res.status(200).json({
+      data: rows[0],
+    });
+
+  } catch (error) {
+    console.error("GET POST STATS ERROR:", error);
+
+    return res.status(500).json({
+      message: "Gagal ambil stats",
+      error: error.message,
+    });
+  }
+};

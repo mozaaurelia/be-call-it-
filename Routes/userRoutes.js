@@ -1,36 +1,87 @@
 import express from "express";
-import { verifyToken, isRole } from "../Middleware/auth.js";
+
 import {
   getUsers,
   getUserById,
+  createUser,
   updateMyProfile,
-  deleteUser,
-  updateUserByAdmin
+  updateUserByAdmin,
+  deleteUser
 } from "../Controllers/userController.js";
+
+import {
+  verifyToken,
+  isRole
+} from "../Middleware/auth.js";
 
 const router = express.Router();
 
 
 // =========================
-// USER EDIT DIRI SENDIRI
+// GET ALL USERS
+// ADMIN + SUPERADMIN
 // =========================
-router.put("/me", verifyToken, updateMyProfile);
+router.get(
+  "/",
+  verifyToken,
+  isRole("admin", "superadmin"),
+  getUsers
+);
 
 
 // =========================
+// GET USER BY ID
+// SUPERADMIN + USER SENDIRI
+// =========================
+router.get(
+  "/:id",
+  verifyToken,
+  getUserById
+);
+
+
+// =========================
+// CREATE USER / ADMIN
 // SUPERADMIN ONLY
 // =========================
-router.get("/", verifyToken, isRole("superadmin"), getUsers);
-
-router.delete("/:id", verifyToken, isRole("superadmin"), deleteUser);
-
-router.put("/:id", verifyToken, isRole("superadmin"), updateUserByAdmin);
+router.post(
+  "/",
+  verifyToken,
+  isRole("superadmin"),
+  createUser
+);
 
 
 // =========================
-// GET USER BY ID (SELF + ADMIN + SUPERADMIN)
+// UPDATE PROFILE SENDIRI
 // =========================
-router.get("/:id", verifyToken, getUserById);
+router.put(
+  "/me",
+  verifyToken,
+  updateMyProfile
+);
 
+
+// =========================
+// UPDATE USER BY SUPERADMIN
+// =========================
+router.put(
+  "/:id",
+  verifyToken,
+  isRole("superadmin"),
+  updateUserByAdmin
+);
+
+
+// =========================
+// DELETE USER
+// SUPERADMIN ONLY
+// =========================
+router.delete(
+  "/:id",
+  verifyToken,
+  isRole("superadmin"),
+  deleteUser
+);
 
 export default router;
