@@ -287,6 +287,18 @@ export const deletePost = async (req, res) => {
       });
     }
 
+
+    // INI CODE YANG BARU DI TAMBAHIN
+    // user hanya boleh hapus laporan pending
+if (
+  req.user.role === "user" &&
+  rows[0].status.toLowerCase() !== "pending"
+) {
+  return res.status(403).json({
+    message: "Hanya laporan pending yang boleh dihapus",
+  });
+}
+
     await connection.query(
       "DELETE FROM public_reports WHERE id=?",
       [id]
